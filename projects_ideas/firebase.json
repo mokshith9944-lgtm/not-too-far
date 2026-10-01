@@ -1,0 +1,14 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "authorizedRedirectUris": [
+          "https://not-too-far-175c8.firebaseapp.com/__/auth/handler",
+          "https://not-too-far.vercel.app",
+          "http://localhost:3000"
+        ]
+      }
+    }
+  }
+}
