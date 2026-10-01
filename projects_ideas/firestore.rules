@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User Profiles
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Party Rooms
+    match /party_rooms/{roomId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        resource.data.hostId == request.auth.uid || 
+        resource.data.isLocked == false
+      );
+      allow delete: if request.auth != null && resource.data.hostId == request.auth.uid;
+    }
+
+    // Chat Messages within Party Rooms
+    match /party_rooms/{roomId}/messages/{messageId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Universes & Communities
+    match /universes/{universeId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+  }
+}
