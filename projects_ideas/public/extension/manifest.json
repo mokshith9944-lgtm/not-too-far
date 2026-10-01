@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Not Too Far - Video Sync Companion",
+  "version": "1.0.0",
+  "description": "Ultra-low latency streaming synchronization bridge for Not Too Far watch parties across Netflix, Disney+ Hotstar, Prime Video, and direct web video streams.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.netflix.com/*",
+    "*://*.hotstar.com/*",
+    "*://*.primevideo.com/*",
+    "*://*.youtube.com/*",
+    "http://localhost/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.hotstar.com/*",
+        "*://*.primevideo.com/*",
+        "*://*.youtube.com/*",
+        "http://localhost/*",
+        "https://*.vercel.app/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ]
+}
