@@ -3,27 +3,111 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Film, Mail, ArrowRight, ShieldCheck, Sparkles, Check } from 'lucide-react';
-import { CURRENT_USER } from '@/lib/mock-data';
+import {
+  Film,
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  Check,
+  AlertCircle,
+  Key,
+  Info,
+  ChevronDown
+} from 'lucide-react';
+import { useAuth } from '@/lib/firebase/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
+  const {
+    user,
+    profile,
+    isConfigured,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    loginAsGuest,
+  } = useAuth();
+
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showConfigHelper, setShowConfigHelper] = useState(false);
 
-  const handleMagicLink = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-
+  // Handle Google Sign-In
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    setTimeout(() => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await signInWithGoogle();
+      setSuccessMessage('Successfully signed in with Google!');
+      setTimeout(() => router.push('/'), 600);
+    } catch (err: any) {
+      console.error('Google Sign-In Error:', err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setErrorMessage(
+          'Unauthorized domain: Please add "localhost" to Authorized Domains in your Firebase Console (Authentication > Settings > Authorized domains).'
+        );
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setErrorMessage('Google Sign-In popup was closed before completion.');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setErrorMessage('Another sign-in popup is already open.');
+      } else {
+        setErrorMessage(err.message || 'Failed to authenticate with Google.');
+      }
+    } finally {
       setIsLoading(false);
-      setIsSubmitted(true);
-    }, 600);
+    }
   };
 
-  const handleInstantDemoLogin = () => {
+  // Handle Email Authentication
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      if (mode === 'signup') {
+        await signUpWithEmail(email, password, displayName || undefined);
+        setSuccessMessage('Account created successfully! Welcome to Not Too Far.');
+      } else {
+        await signInWithEmail(email, password);
+        setSuccessMessage('Welcome back! Loading your universes...');
+      }
+      setTimeout(() => router.push('/'), 600);
+    } catch (err: any) {
+      console.error('Email Auth Error:', err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        setErrorMessage('Invalid email or password. Please verify your credentials.');
+      } else if (err.code === 'auth/user-not-found') {
+        setErrorMessage('No account found with this email. Switch to Create Account.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setErrorMessage('This email is already registered. Please sign in instead.');
+      } else if (err.code === 'auth/weak-password') {
+        setErrorMessage('Password must be at least 6 characters long.');
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorMessage('Please enter a valid email address.');
+      } else {
+        setErrorMessage(err.message || 'Authentication error occurred.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGuestLogin = () => {
+    loginAsGuest(displayName || 'Alex Vance');
     router.push('/');
   };
 
@@ -49,25 +133,46 @@ export default function LoginPage() {
             NOT TOO FAR
           </span>
         </Link>
+
+        {/* Firebase Config Status Indicator */}
+        <div className="flex items-center space-x-2">
+          <span
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono border backdrop-blur-md ${
+              isConfigured
+                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isConfigured ? 'bg-green-500 animate-pulse' : 'bg-yellow-400'
+              }`}
+            />
+            <span>{isConfigured ? 'Firebase: Connected' : 'Firebase: Demo/Test Mode'}</span>
+          </span>
+        </div>
       </header>
 
       {/* Auth Card Center */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-netflix-base/90 border border-white/10 rounded-xl p-8 sm:p-10 shadow-cinema backdrop-blur-xl space-y-6">
+        <div className="w-full max-w-md bg-netflix-base/95 border border-white/10 rounded-xl p-8 sm:p-10 shadow-cinema backdrop-blur-xl space-y-6">
+          {/* Title & Mode Switcher */}
           <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              Sign In to Stream
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              {mode === 'signup' ? 'Create Cinephile Account' : 'Sign In to Stream'}
             </h1>
             <p className="text-xs text-netflix-gray">
               Co-watch movies and synchronized streams in zero-drift rooms.
             </p>
           </div>
 
-          {/* Social Auth Providers */}
+          {/* Social Auth Providers (Google) */}
           <div className="space-y-3">
             <button
-              onClick={handleInstantDemoLogin}
-              className="w-full py-2.5 px-4 rounded-md bg-white hover:bg-gray-100 text-black font-semibold text-xs transition-all flex items-center justify-center space-x-2 shadow-md"
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+              className="w-full py-2.5 px-4 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-black font-semibold text-xs transition-all flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01]"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -87,90 +192,189 @@ export default function LoginPage() {
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.61l4.02 3.15c.95-2.85 3.6-4.96 6.73-4.96z"
                 />
               </svg>
-              <span>Continue with Google</span>
-            </button>
-
-            <button
-              onClick={handleInstantDemoLogin}
-              className="w-full py-2.5 px-4 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs transition-all flex items-center justify-center space-x-2"
-            >
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.88c.61-.74 1.02-1.77.9-2.8-.88.04-1.95.59-2.58 1.33-.55.64-.99 1.68-.86 2.68.98.08 1.93-.47 2.54-1.21z" />
-              </svg>
-              <span>Continue with Apple</span>
+              <span>{isLoading ? 'Connecting...' : 'Continue with Google (Firebase Auth)'}</span>
             </button>
           </div>
 
           <div className="relative flex items-center justify-center">
             <div className="border-t border-white/10 w-full" />
             <span className="bg-netflix-base px-3 text-[11px] text-netflix-muted uppercase font-mono">
-              Or passwordless link
+              Or with Email &amp; Password
             </span>
           </div>
 
-          {/* Magic Link Form */}
-          {isSubmitted ? (
-            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30 text-center space-y-2">
-              <div className="w-8 h-8 rounded-full bg-green-500/20 text-green-400 mx-auto flex items-center justify-center">
-                <Check className="w-5 h-5" />
-              </div>
-              <p className="text-xs font-semibold text-white">Magic Link Dispatched!</p>
-              <p className="text-[11px] text-netflix-gray">
-                Check your inbox at <span className="text-white font-mono">{email}</span>. Click the link to enter immediately.
-              </p>
-              <button
-                onClick={handleInstantDemoLogin}
-                className="mt-2 text-xs font-bold text-netflix-red hover:underline"
-              >
-                Or Continue Directly to App &rarr;
-              </button>
+          {/* Feedback Alerts */}
+          {errorMessage && (
+            <div className="p-3 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{errorMessage}</span>
             </div>
-          ) : (
-            <form onSubmit={handleMagicLink} className="space-y-3">
+          )}
+
+          {successMessage && (
+            <div className="p-3 rounded bg-green-500/10 border border-green-500/30 text-xs text-green-400 flex items-center space-x-2">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailAuth} className="space-y-3.5">
+            {mode === 'signup' && (
               <div>
                 <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
-                  Email Address
+                  Display Name
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
+                  <User className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
                   <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="e.g., Sarah Connor"
                     className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
                   />
                 </div>
               </div>
+            )}
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-2.5 rounded bg-netflix-red hover:bg-netflix-redHover text-white text-xs font-bold shadow-glow-red transition-all flex items-center justify-center space-x-1.5"
-              >
-                <span>{isLoading ? 'Sending Link...' : 'Send Magic Sign-In Link'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
-          )}
+            <div>
+              <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@cinema.com"
+                  className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
+                />
+              </div>
+            </div>
 
-          {/* Instant Guest Mode CTA */}
-          <div className="pt-2 border-t border-white/5">
+            <div>
+              <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
+                />
+              </div>
+            </div>
+
             <button
-              onClick={handleInstantDemoLogin}
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-2.5 rounded bg-netflix-red hover:bg-netflix-redHover disabled:opacity-50 text-white text-xs font-bold shadow-glow-red transition-all flex items-center justify-center space-x-1.5"
+            >
+              <span>
+                {isLoading
+                  ? 'Authenticating...'
+                  : mode === 'signup'
+                  ? 'Create Firebase Account'
+                  : 'Sign In (Firebase)'}
+              </span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          {/* Toggle between Sign In & Sign Up */}
+          <div className="text-center pt-1">
+            {mode === 'signin' ? (
+              <p className="text-xs text-netflix-gray">
+                New to Not Too Far?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('signup');
+                    setErrorMessage('');
+                  }}
+                  className="text-white hover:text-netflix-red font-semibold underline ml-1"
+                >
+                  Create an account
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs text-netflix-gray">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('signin');
+                    setErrorMessage('');
+                  }}
+                  className="text-white hover:text-netflix-red font-semibold underline ml-1"
+                >
+                  Sign in here
+                </button>
+              </p>
+            )}
+          </div>
+
+          {/* Instant Guest / Demo Mode Button */}
+          <div className="pt-3 border-t border-white/5 space-y-2">
+            <button
+              type="button"
+              onClick={handleGuestLogin}
               className="w-full py-2 rounded bg-netflix-card hover:bg-white/10 border border-white/10 text-xs font-semibold text-netflix-gray hover:text-white transition-colors flex items-center justify-center space-x-2"
             >
               <Sparkles className="w-3.5 h-3.5 text-netflix-gold" />
-              <span>Explore as Guest Cinephile ({CURRENT_USER.display_name})</span>
+              <span>Instant Guest Mode ({profile.display_name})</span>
             </button>
+
+            {/* Collapsible Firebase Environment Helper */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfigHelper(!showConfigHelper)}
+                className="w-full flex items-center justify-between text-[11px] text-netflix-muted hover:text-netflix-gray transition-colors"
+              >
+                <span className="flex items-center gap-1 font-mono">
+                  <Key className="w-3 h-3 text-netflix-red" />
+                  <span>How to connect your live Firebase project</span>
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transform transition-transform ${
+                    showConfigHelper ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {showConfigHelper && (
+                <div className="mt-2 p-3 rounded bg-black/60 border border-white/10 text-[11px] text-netflix-gray space-y-2 font-mono">
+                  <p className="text-white font-semibold">Add to your .env.local:</p>
+                  <pre className="text-[10px] text-green-400 bg-black p-2 rounded overflow-x-auto select-all">
+{`NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSy...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-app.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1234567890
+NEXT_PUBLIC_FIREBASE_APP_ID=1:12345:web:abcdef`}
+                  </pre>
+                  <p className="text-netflix-muted text-[10px]">
+                    Google Sign-In requires "Google" enabled under Firebase Console &gt; Authentication &gt; Sign-in method, with "localhost" listed under Authorized domains.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="relative z-10 max-w-7xl mx-auto w-full px-6 py-6 text-center text-xs text-netflix-muted">
-        <span>Protected by Supabase Auth with Row Level Security &amp; End-to-End Session Cookies.</span>
+        <span>Protected by Firebase Authentication with Google Identity Provider &amp; Secure Token Handlers.</span>
       </footer>
     </div>
   );

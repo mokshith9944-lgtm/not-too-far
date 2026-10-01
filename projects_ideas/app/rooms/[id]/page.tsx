@@ -20,9 +20,10 @@ import VideoPlayer from '@/components/player/VideoPlayer';
 import UnifiedDock from '@/components/dock/UnifiedDock';
 import InviteModal from '@/components/InviteModal';
 import { PartyRoom, ChatMessage, PlaybackState, SyncActionBroadcast, SyncStateBroadcast } from '@/lib/types';
-import { MOCK_ROOMS, MOCK_MESSAGES, CURRENT_USER, MOCK_HOST_PROFILE } from '@/lib/mock-data';
+import { MOCK_ROOMS, MOCK_MESSAGES, MOCK_HOST_PROFILE } from '@/lib/mock-data';
 import { getRealtimeChannel } from '@/lib/supabase/client';
 import { evaluateDrift, formatTimecode } from '@/lib/sync-engine';
+import { useAuth } from '@/lib/firebase/auth-context';
 
 interface RoomPageProps {
   params: {
@@ -33,6 +34,7 @@ interface RoomPageProps {
 export default function WatchRoomPage({ params }: RoomPageProps) {
   const roomId = params.id;
   const router = useRouter();
+  const { profile: currentUser } = useAuth();
 
   // Room state
   const [room, setRoom] = useState<PartyRoom | null>(null);
@@ -77,15 +79,15 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         ...MOCK_ROOMS[0],
         id: roomId,
         title: `Room #${roomId.substring(0, 8)}`,
-        host_id: CURRENT_USER.id,
-        host_profile: CURRENT_USER,
+        host_id: currentUser.id,
+        host_profile: currentUser,
       };
     }
 
     setRoom(foundRoom);
     setPlaybackState(foundRoom.playback_state);
     setHostPlayhead(foundRoom.current_timestamp);
-    setIsHost(foundRoom.host_id === CURRENT_USER.id);
+    setIsHost(foundRoom.host_id === currentUser.id);
 
     // Load initial messages
     const initialMsgs = MOCK_MESSAGES[roomId] || [
@@ -112,7 +114,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
     // Listen to real-time sync actions from participants/host
     channel.on('broadcast', { event: 'SYNC_ACTION' }, (data: any) => {
       const payload: SyncActionBroadcast = data.payload || data;
-      if (payload.senderId === CURRENT_USER.id) return; // Ignore own broadcast
+      if (payload.senderId === currentUser.id) return; // Ignore own broadcast
 
       console.log('[Realtime Sync Action received]:', payload);
       lastBroadcastEpochRef.current = payload.timestamp;
@@ -149,7 +151,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
     // Listen to periodic host heartbeats
     channel.on('broadcast', { event: 'HEARTBEAT' }, (data: any) => {
       const payload: SyncStateBroadcast = data.payload || data;
-      if (payload.senderId === CURRENT_USER.id) return;
+      if (payload.senderId === currentUser.id) return;
 
       lastBroadcastEpochRef.current = payload.timestamp;
       setPlaybackState(payload.playbackState);
@@ -200,7 +202,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
           payload: {
             type: 'SYNC_STATE_BROADCAST',
             roomId,
-            senderId: CURRENT_USER.id,
+            senderId: currentUser.id,
             playbackState,
             currentTime: localVideoTime,
             playbackSpeed: 1.0,
@@ -250,7 +252,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         payload: {
           type: 'SYNC_ACTION',
           roomId,
-          senderId: CURRENT_USER.id,
+          senderId: currentUser.id,
           action: 'PLAY',
           targetTime: currentTime,
           timestamp: Date.now(),
@@ -275,7 +277,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         payload: {
           type: 'SYNC_ACTION',
           roomId,
-          senderId: CURRENT_USER.id,
+          senderId: currentUser.id,
           action: 'PAUSE',
           targetTime: currentTime,
           timestamp: Date.now(),
@@ -298,7 +300,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         payload: {
           type: 'SYNC_ACTION',
           roomId,
-          senderId: CURRENT_USER.id,
+          senderId: currentUser.id,
           action: 'SEEK',
           targetTime,
           timestamp: Date.now(),
@@ -326,7 +328,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         payload: {
           type: 'SYNC_ACTION',
           roomId,
-          senderId: CURRENT_USER.id,
+          senderId: currentUser.id,
           action: 'SPEED_CHANGE',
           speed,
           timestamp: Date.now(),
@@ -339,11 +341,11 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       room_id: roomId,
-      user_id: CURRENT_USER.id,
+      user_id: currentUser.id,
       content,
       timestamp_tag: timestampTag,
       created_at: new Date().toISOString(),
-      sender: CURRENT_USER,
+      sender: currentUser,
     };
 
     setMessages((prev) => [...prev, newMsg]);
@@ -363,15 +365,15 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         if (msg.id !== messageId) return msg;
         const currentReactions = msg.reactions || {};
         const userList = currentReactions[emoji] || [];
-        const hasReacted = userList.includes(CURRENT_USER.id);
+        const hasReacted = userList.includes(currentUser.id);
 
         return {
           ...msg,
           reactions: {
             ...currentReactions,
             [emoji]: hasReacted
-              ? userList.filter((id) => id !== CURRENT_USER.id)
-              : [...userList, CURRENT_USER.id],
+              ? userList.filter((id) => id !== currentUser.id)
+              : [...userList, currentUser.id],
           },
         };
       })
@@ -393,7 +395,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         payload: {
           type: 'SYNC_ACTION',
           roomId,
-          senderId: CURRENT_USER.id,
+          senderId: currentUser.id,
           action: 'CHANGE_MEDIA',
           mediaUrl: newUrl,
           mediaTitle: 'Direct Stream',
@@ -492,7 +494,7 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
         {/* Collapsible Unified Communication Dock */}
         <UnifiedDock
           room={room}
-          currentUser={CURRENT_USER}
+          currentUser={currentUser}
           messages={messages}
           currentVideoTime={localVideoTime}
           isHost={isHost}

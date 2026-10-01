@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { AuthProvider } from '@/lib/firebase/auth-context';
+
 export default function RootLayout({
   children,
 }: {
@@ -24,7 +26,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="bg-netflix-base text-white antialiased min-h-screen selection:bg-netflix-red selection:text-white">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

@@ -15,9 +15,11 @@ import {
   ChevronDown,
   Sparkles,
   Shield,
-  Volume2
+  Volume2,
+  LogOut,
+  LogIn
 } from 'lucide-react';
-import { CURRENT_USER } from '@/lib/mock-data';
+import { useAuth } from '@/lib/firebase/auth-context';
 
 interface NavbarProps {
   onOpenCreateRoom?: () => void;
@@ -26,6 +28,7 @@ interface NavbarProps {
 
 export default function Navbar({ onOpenCreateRoom, onOpenCreateUniverse }: NavbarProps) {
   const pathname = usePathname();
+  const { user, profile, signOutUser } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,8 +140,8 @@ export default function Navbar({ onOpenCreateRoom, onOpenCreateUniverse }: Navba
             >
               <div className="relative">
                 <img
-                  src={CURRENT_USER.avatar_url}
-                  alt={CURRENT_USER.display_name}
+                  src={profile.avatar_url}
+                  alt={profile.display_name}
                   className="w-8 h-8 rounded border border-white/20 object-cover"
                 />
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border border-black" />
@@ -148,39 +151,62 @@ export default function Navbar({ onOpenCreateRoom, onOpenCreateUniverse }: Navba
 
             {/* User Dropdown */}
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-netflix-surface border border-white/10 rounded-md shadow-cinema py-2 text-sm z-50">
+              <div className="absolute right-0 mt-2 w-60 bg-netflix-surface border border-white/10 rounded-md shadow-cinema py-2 text-sm z-50">
                 <div className="px-4 py-2 border-b border-white/10">
-                  <p className="font-semibold text-white">{CURRENT_USER.display_name}</p>
-                  <p className="text-xs text-netflix-muted">@{CURRENT_USER.username}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-white truncate max-w-[140px]">{profile.display_name}</p>
+                    {user ? (
+                      <span className="text-[10px] bg-netflix-red/20 text-netflix-red px-1.5 py-0.5 rounded font-mono">Firebase</span>
+                    ) : (
+                      <span className="text-[10px] bg-white/10 text-netflix-gray px-1.5 py-0.5 rounded font-mono">Guest</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-netflix-muted truncate">
+                    {user?.email || `@${profile.username}`}
+                  </p>
                 </div>
                 <div className="py-1">
                   <div className="px-4 py-1.5 text-xs text-green-400 flex items-center space-x-2">
                     <span className="w-2 h-2 bg-green-500 rounded-full" />
-                    <span>Realtime Presence: Synchronized</span>
+                    <span>Realtime Presence: Active</span>
                   </div>
                   <Link
                     href="/universes"
-                    className="block px-4 py-2 hover:bg-white/5 text-netflix-gray hover:text-white transition-colors"
+                    className="block px-4 py-2 hover:bg-white/5 text-netflix-gray hover:text-white transition-colors text-xs"
                     onClick={() => setShowUserMenu(false)}
                   >
                     My Universes
                   </Link>
                   <Link
                     href="/extension-bridge"
-                    className="block px-4 py-2 hover:bg-white/5 text-netflix-gray hover:text-white transition-colors"
+                    className="block px-4 py-2 hover:bg-white/5 text-netflix-gray hover:text-white transition-colors text-xs"
                     onClick={() => setShowUserMenu(false)}
                   >
                     Extension Companion
                   </Link>
                 </div>
                 <div className="border-t border-white/10 pt-1 mt-1">
-                  <Link
-                    href="/login"
-                    className="block px-4 py-2 text-xs text-netflix-red hover:bg-white/5 transition-colors"
-                    onClick={() => setShowUserMenu(false)}
-                  >
-                    Switch Account / Sign In
-                  </Link>
+                  {user ? (
+                    <button
+                      onClick={async () => {
+                        await signOutUser();
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center space-x-1.5"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out (Firebase)</span>
+                    </button>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="block px-4 py-2 text-xs text-netflix-red hover:bg-white/5 transition-colors flex items-center space-x-1.5"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Sign In with Google / Email</span>
+                    </Link>
+                  )}
                 </div>
               </div>
             )}
