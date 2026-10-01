@@ -24,6 +24,12 @@ import { MOCK_ROOMS, MOCK_MESSAGES, MOCK_HOST_PROFILE } from '@/lib/mock-data';
 import { getRealtimeChannel } from '@/lib/supabase/client';
 import { evaluateDrift, formatTimecode } from '@/lib/sync-engine';
 import { useAuth } from '@/lib/firebase/auth-context';
+import {
+  getRoomFromFirestore,
+  saveRoomToFirestore,
+  saveMessageToFirestore,
+  getMessagesFromFirestore,
+} from '@/lib/firebase/firestore';
 
 interface RoomPageProps {
   params: {
@@ -73,35 +79,68 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
       }
     }
 
-    // 3. Fallback generic room if not found
-    if (!foundRoom) {
-      foundRoom = {
-        ...MOCK_ROOMS[0],
-        id: roomId,
-        title: `Room #${roomId.substring(0, 8)}`,
-        host_id: currentUser.id,
-        host_profile: currentUser,
-      };
+    if (foundRoom) {
+      setRoom(foundRoom);
+      setPlaybackState(foundRoom.playback_state);
+      setHostPlayhead(foundRoom.current_timestamp);
+      setIsHost(foundRoom.host_id === currentUser.id);
     }
-
-    setRoom(foundRoom);
-    setPlaybackState(foundRoom.playback_state);
-    setHostPlayhead(foundRoom.current_timestamp);
-    setIsHost(foundRoom.host_id === currentUser.id);
 
     // Load initial messages
     const initialMsgs = MOCK_MESSAGES[roomId] || [
       {
         id: 'welcome-msg',
         room_id: roomId,
-        user_id: foundRoom.host_id,
-        content: `Welcome to "${foundRoom.title}". Video synchronization is active! 🚀`,
+        user_id: foundRoom?.host_id || currentUser.id,
+        content: `Welcome to "${foundRoom?.title || 'Watch Room'}". Video synchronization is active! 🚀`,
         created_at: new Date().toISOString(),
-        sender: foundRoom.host_profile || MOCK_HOST_PROFILE,
+        sender: foundRoom?.host_profile || currentUser || MOCK_HOST_PROFILE,
       },
     ];
     setMessages(initialMsgs);
-  }, [roomId]);
+
+    // 3. Query Firestore for live room metadata and persistent messages
+    async function fetchFirestoreRoomAndMessages() {
+      try {
+        const remoteRoom = await getRoomFromFirestore(roomId);
+        if (remoteRoom) {
+          setRoom(remoteRoom);
+          setPlaybackState(remoteRoom.playback_state);
+          setHostPlayhead(remoteRoom.current_timestamp);
+          setIsHost(remoteRoom.host_id === currentUser.id);
+        } else if (!foundRoom) {
+          // Fallback generic room if not found anywhere
+          const fallbackRoom: PartyRoom = {
+            ...MOCK_ROOMS[0],
+            id: roomId,
+            title: `Room #${roomId.substring(0, 8)}`,
+            host_id: currentUser.id,
+            host_profile: currentUser,
+          };
+          setRoom(fallbackRoom);
+          setPlaybackState(fallbackRoom.playback_state);
+          setHostPlayhead(fallbackRoom.current_timestamp);
+          setIsHost(true);
+        }
+
+        const remoteMsgs = await getMessagesFromFirestore(roomId);
+        if (remoteMsgs && remoteMsgs.length > 0) {
+          setMessages((prev) => {
+            const map = new Map<string, ChatMessage>();
+            prev.forEach((m) => map.set(m.id, m));
+            remoteMsgs.forEach((m) => map.set(m.id, m));
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          });
+        }
+      } catch (err) {
+        console.warn('Firestore room load error:', err);
+      }
+    }
+
+    fetchFirestoreRoomAndMessages();
+  }, [roomId, currentUser]);
 
   // Connect to Supabase Realtime Broadcast Channel
   useEffect(() => {
@@ -350,6 +389,9 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
 
     setMessages((prev) => [...prev, newMsg]);
 
+    // Persist to Cloud Firestore
+    saveMessageToFirestore(newMsg);
+
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -385,7 +427,15 @@ export default function WatchRoomPage({ params }: RoomPageProps) {
     if (!customSourceInput.trim() || !room) return;
 
     const newUrl = customSourceInput.trim();
-    setRoom((prev) => (prev ? { ...prev, media_url: newUrl } : prev));
+    const updatedRoom: PartyRoom = {
+      ...room,
+      media_url: newUrl,
+      media_title: 'Direct Stream',
+      updated_at: new Date().toISOString(),
+    };
+
+    setRoom(updatedRoom);
+    saveRoomToFirestore(updatedRoom);
     setIsChangeSourceModalOpen(false);
 
     if (channelRef.current) {

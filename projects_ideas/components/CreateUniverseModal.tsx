@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Sparkles, Globe, Lock, Compass } from 'lucide-react';
-import { CURRENT_USER } from '@/lib/mock-data';
+import { useAuth } from '@/lib/firebase/auth-context';
+import { saveUniverseToFirestore } from '@/lib/firebase/firestore';
 
 interface CreateUniverseModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface CreateUniverseModalProps {
 
 export default function CreateUniverseModal({ isOpen, onClose }: CreateUniverseModalProps) {
   const router = useRouter();
+  const { profile } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -19,7 +21,7 @@ export default function CreateUniverseModal({ isOpen, onClose }: CreateUniverseM
 
   if (!isOpen) return null;
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -33,12 +35,15 @@ export default function CreateUniverseModal({ isOpen, onClose }: CreateUniverseM
       is_public: isPublic,
       icon_url: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=150&auto=format&fit=crop&q=80',
       banner_url: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop&q=80',
-      owner_id: CURRENT_USER.id,
+      owner_id: profile.id,
       invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
       member_count: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    // Save to Firestore
+    await saveUniverseToFirestore(newUniverse as any);
 
     if (typeof window !== 'undefined') {
       try {

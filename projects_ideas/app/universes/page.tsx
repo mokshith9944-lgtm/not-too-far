@@ -1,20 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Compass, Users, Sparkles, PlusCircle, Search, Film, Shield, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import CreateUniverseModal from '@/components/CreateUniverseModal';
 import CreateRoomModal from '@/components/CreateRoomModal';
 import { MOCK_UNIVERSES } from '@/lib/mock-data';
+import { Universe } from '@/lib/types';
+import { getUniversesFromFirestore } from '@/lib/firebase/firestore';
 
 export default function UniversesDirectoryPage() {
   const [isCreateUniverseOpen, setIsCreateUniverseOpen] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
+  const [universes, setUniverses] = useState<Universe[]>(MOCK_UNIVERSES);
 
-  const filteredUniverses = MOCK_UNIVERSES.filter((u) =>
+  useEffect(() => {
+    async function loadUniverses() {
+      try {
+        const firestoreUniverses = await getUniversesFromFirestore();
+        let localUniverses: Universe[] = [];
+        if (typeof window !== 'undefined') {
+          try {
+            localUniverses = JSON.parse(localStorage.getItem('ntf_custom_universes') || '[]');
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const univMap = new Map<string, Universe>();
+        MOCK_UNIVERSES.forEach((u) => univMap.set(u.id, u));
+        firestoreUniverses.forEach((u) => univMap.set(u.id, u));
+        localUniverses.forEach((u) => univMap.set(u.id, u));
+        setUniverses(Array.from(univMap.values()));
+      } catch (err) {
+        console.warn('Could not fetch remote universes:', err);
+      }
+    }
+
+    loadUniverses();
+  }, []);
+
+  const filteredUniverses = universes.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.description?.toLowerCase().includes(search.toLowerCase())
   );

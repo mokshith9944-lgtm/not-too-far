@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Film,
@@ -24,10 +24,50 @@ import MediaCard from '@/components/MediaCard';
 import CreateRoomModal from '@/components/CreateRoomModal';
 import CreateUniverseModal from '@/components/CreateUniverseModal';
 import { MOCK_ROOMS, MOCK_UNIVERSES } from '@/lib/mock-data';
+import { PartyRoom, Universe } from '@/lib/types';
+import { getRoomsFromFirestore, getUniversesFromFirestore } from '@/lib/firebase/firestore';
 
 export default function HomePage() {
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [isCreateUniverseOpen, setIsCreateUniverseOpen] = useState(false);
+  const [rooms, setRooms] = useState<PartyRoom[]>(MOCK_ROOMS);
+  const [universes, setUniverses] = useState<Universe[]>(MOCK_UNIVERSES);
+
+  useEffect(() => {
+    async function loadDynamicContent() {
+      try {
+        const firestoreRooms = await getRoomsFromFirestore();
+        const firestoreUniverses = await getUniversesFromFirestore();
+
+        let localRooms: PartyRoom[] = [];
+        let localUniverses: Universe[] = [];
+        if (typeof window !== 'undefined') {
+          try {
+            localRooms = JSON.parse(localStorage.getItem('ntf_custom_rooms') || '[]');
+            localUniverses = JSON.parse(localStorage.getItem('ntf_custom_universes') || '[]');
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const roomMap = new Map<string, PartyRoom>();
+        MOCK_ROOMS.forEach((r) => roomMap.set(r.id, r));
+        firestoreRooms.forEach((r) => roomMap.set(r.id, r));
+        localRooms.forEach((r) => roomMap.set(r.id, r));
+        setRooms(Array.from(roomMap.values()));
+
+        const univMap = new Map<string, Universe>();
+        MOCK_UNIVERSES.forEach((u) => univMap.set(u.id, u));
+        firestoreUniverses.forEach((u) => univMap.set(u.id, u));
+        localUniverses.forEach((u) => univMap.set(u.id, u));
+        setUniverses(Array.from(univMap.values()));
+      } catch (err) {
+        console.warn('Could not fetch remote rooms/universes:', err);
+      }
+    }
+
+    loadDynamicContent();
+  }, []);
 
   return (
     <div className="min-h-screen bg-netflix-base text-white flex flex-col">
@@ -63,7 +103,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {MOCK_ROOMS.map((room) => (
+            {rooms.map((room) => (
               <MediaCard key={room.id} room={room} />
             ))}
           </div>
@@ -89,7 +129,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {MOCK_UNIVERSES.map((universe) => (
+            {universes.map((universe) => (
               <Link
                 key={universe.id}
                 href={`/universes/${universe.id}`}
@@ -220,7 +260,7 @@ export default function HomePage() {
               Universes Directory
             </Link>
             <Link href="/login" className="hover:text-white transition-colors">
-              Supabase Auth
+              Firebase Auth
             </Link>
             <span className="text-green-400 flex items-center gap-1 font-mono">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Film, Link as LinkIcon, Lock, Sparkles, Video } from 'lucide-react';
 import { MOCK_ROOMS } from '@/lib/mock-data';
+import { useAuth } from '@/lib/firebase/auth-context';
+import { saveRoomToFirestore } from '@/lib/firebase/firestore';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ const PRESET_VIDEOS = [
 
 export default function CreateRoomModal({ isOpen, onClose, universeId, orbitId }: CreateRoomModalProps) {
   const router = useRouter();
+  const { profile } = useAuth();
   const [title, setTitle] = useState('');
   const [mediaTitle, setMediaTitle] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
@@ -57,7 +60,7 @@ export default function CreateRoomModal({ isOpen, onClose, universeId, orbitId }
     setThumbnailUrl(preset.thumbnail);
   };
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -76,8 +79,16 @@ export default function CreateRoomModal({ isOpen, onClose, universeId, orbitId }
       is_private: false,
       universe_id: universeId,
       orbit_id: orbitId,
+      host_id: profile.id,
+      host_profile: profile,
+      max_participants: 50,
+      last_sync_broadcast: new Date().toISOString(),
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
+
+    // Save to Firestore
+    await saveRoomToFirestore(newRoom as any);
 
     // Store in localStorage for instant access across tabs
     if (typeof window !== 'undefined') {
@@ -90,11 +101,9 @@ export default function CreateRoomModal({ isOpen, onClose, universeId, orbitId }
       }
     }
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      onClose();
-      router.push(`/rooms/${newId}`);
-    }, 300);
+    setIsSubmitting(false);
+    onClose();
+    router.push(`/rooms/${newId}`);
   };
 
   return (

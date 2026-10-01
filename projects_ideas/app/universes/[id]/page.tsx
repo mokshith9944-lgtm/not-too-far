@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Film,
@@ -20,9 +20,11 @@ import {
   Smile,
   Radio
 } from 'lucide-react';
-import { MOCK_UNIVERSES, MOCK_ORBITS, MOCK_PARTICIPANTS, CURRENT_USER, MOCK_ROOMS } from '@/lib/mock-data';
-import { Orbit, ChatMessage } from '@/lib/types';
+import { MOCK_UNIVERSES, MOCK_ORBITS, MOCK_PARTICIPANTS, MOCK_ROOMS } from '@/lib/mock-data';
+import { Orbit, ChatMessage, Universe } from '@/lib/types';
 import CreateRoomModal from '@/components/CreateRoomModal';
+import { useAuth } from '@/lib/firebase/auth-context';
+import { getUniverseFromFirestore } from '@/lib/firebase/firestore';
 
 interface UniversePageProps {
   params: {
@@ -32,7 +34,10 @@ interface UniversePageProps {
 
 export default function UniverseDetailPage({ params }: UniversePageProps) {
   const universeId = params.id;
-  const universe = MOCK_UNIVERSES.find((u) => u.id === universeId) || MOCK_UNIVERSES[0];
+  const { profile: currentUser } = useAuth();
+  const [universe, setUniverse] = useState<Universe>(() => {
+    return MOCK_UNIVERSES.find((u) => u.id === universeId) || MOCK_UNIVERSES[0];
+  });
 
   const [activeOrbitId, setActiveOrbitId] = useState<string>(MOCK_ORBITS[0].id);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
@@ -50,13 +55,36 @@ export default function UniverseDetailPage({ params }: UniversePageProps) {
       {
         id: 'orbit-msg-2',
         orbit_id: MOCK_ORBITS[1].id,
-        user_id: CURRENT_USER.id,
+        user_id: currentUser.id,
         content: 'The 4K remaster of Tears of Steel was incredible. Zero latency on WebRTC.',
         created_at: new Date(Date.now() - 1800000).toISOString(),
-        sender: CURRENT_USER,
+        sender: currentUser,
       },
     ],
   });
+
+  useEffect(() => {
+    let found = MOCK_UNIVERSES.find((u) => u.id === universeId);
+    if (!found && typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('ntf_custom_universes') || '[]');
+        found = stored.find((u: Universe) => u.id === universeId);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (found) setUniverse(found);
+
+    async function fetchRemoteUniverse() {
+      try {
+        const remote = await getUniverseFromFirestore(universeId);
+        if (remote) setUniverse(remote);
+      } catch (err) {
+        console.warn('Could not fetch universe:', err);
+      }
+    }
+    fetchRemoteUniverse();
+  }, [universeId]);
 
   const activeOrbit = MOCK_ORBITS.find((o) => o.id === activeOrbitId) || MOCK_ORBITS[0];
   const watchRoomsInUniverse = MOCK_ROOMS.filter((r) => r.universe_id === universe.id);
@@ -68,10 +96,10 @@ export default function UniverseDetailPage({ params }: UniversePageProps) {
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       orbit_id: activeOrbitId,
-      user_id: CURRENT_USER.id,
+      user_id: currentUser.id,
       content: inputText.trim(),
       created_at: new Date().toISOString(),
-      sender: CURRENT_USER,
+      sender: currentUser,
     };
 
     setOrbitMessages((prev) => ({
@@ -126,8 +154,8 @@ export default function UniverseDetailPage({ params }: UniversePageProps) {
         {/* Bottom profile pill */}
         <div className="relative">
           <img
-            src={CURRENT_USER.avatar_url}
-            alt={CURRENT_USER.display_name}
+            src={currentUser.avatar_url}
+            alt={currentUser.display_name}
             className="w-10 h-10 rounded-full object-cover border border-white/20"
           />
           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border border-black" />
@@ -232,12 +260,12 @@ export default function UniverseDetailPage({ params }: UniversePageProps) {
         <div className="p-3 bg-[#0d0d0d] border-t border-white/5 flex items-center justify-between">
           <div className="flex items-center space-x-2 min-w-0">
             <img
-              src={CURRENT_USER.avatar_url}
-              alt={CURRENT_USER.display_name}
+              src={currentUser.avatar_url}
+              alt={currentUser.display_name}
               className="w-8 h-8 rounded-full object-cover"
             />
             <div className="truncate">
-              <p className="text-xs font-semibold text-white truncate">{CURRENT_USER.display_name}</p>
+              <p className="text-xs font-semibold text-white truncate">{currentUser.display_name}</p>
               <p className="text-[10px] text-green-400 truncate">● Online</p>
             </div>
           </div>
