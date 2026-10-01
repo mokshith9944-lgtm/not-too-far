@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Antigravity - Streaming Video Sync Bridge",
+  "version": "1.0.0",
+  "description": "Ultra-low latency streaming synchronization bridge for Netflix, Disney+ Hotstar, and Prime Video.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://*.netflix.com/*",
+    "https://*.hotstar.com/*",
+    "https://*.primevideo.com/*",
+    "https://*.amazon.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.netflix.com/*",
+        "https://*.hotstar.com/*",
+        "https://*.primevideo.com/*",
+        "https://*.amazon.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
