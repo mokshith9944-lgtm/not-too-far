@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -14,8 +14,9 @@ import {
   Check,
   AlertCircle,
   Key,
-  Info,
-  ChevronDown
+  ChevronDown,
+  CheckCircle2,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '@/lib/firebase/auth-context';
 
@@ -28,6 +29,7 @@ export default function LoginPage() {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    signOutUser,
     loginAsGuest,
   } = useAuth();
 
@@ -38,9 +40,19 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [showConfigHelper, setShowConfigHelper] = useState(false);
+  const [showAlternativeAuth, setShowAlternativeAuth] = useState(false);
 
-  // Handle Google Sign-In
+  // Auto trigger Google sign-in if requested in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('google') === '1' && !user) {
+        handleGoogleSignIn();
+      }
+    }
+  }, [user]);
+
+  // Handle Google 1-Click Sign-In
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage('');
@@ -48,18 +60,18 @@ export default function LoginPage() {
 
     try {
       await signInWithGoogle();
-      setSuccessMessage('Successfully signed in with Google!');
-      setTimeout(() => router.push('/'), 600);
+      setSuccessMessage('Successfully authenticated with Google!');
+      setTimeout(() => router.push('/'), 700);
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       if (err.code === 'auth/unauthorized-domain') {
         setErrorMessage(
-          'Unauthorized domain: Please add "localhost" to Authorized Domains in your Firebase Console (Authentication > Settings > Authorized domains).'
+          'Firebase Domain Authorization Notice: To allow Google OAuth on this domain, add "not-too-far.vercel.app" to Firebase Console > Authentication > Settings > Authorized domains. You can also click below to enter instantly!'
         );
       } else if (err.code === 'auth/popup-closed-by-user') {
-        setErrorMessage('Google Sign-In popup was closed before completion.');
+        setErrorMessage('Google Sign-In window was closed. Click Continue with Google to try again.');
       } else if (err.code === 'auth/cancelled-popup-request') {
-        setErrorMessage('Another sign-in popup is already open.');
+        setErrorMessage('A Google Sign-In request is already in progress.');
       } else {
         setErrorMessage(err.message || 'Failed to authenticate with Google.');
       }
@@ -83,7 +95,7 @@ export default function LoginPage() {
         setSuccessMessage('Account created successfully! Welcome to Not Too Far.');
       } else {
         await signInWithEmail(email, password);
-        setSuccessMessage('Welcome back! Loading your universes...');
+        setSuccessMessage('Welcome back! Loading cinema rooms...');
       }
       setTimeout(() => router.push('/'), 600);
     } catch (err: any) {
@@ -107,7 +119,7 @@ export default function LoginPage() {
   };
 
   const handleGuestLogin = () => {
-    loginAsGuest(displayName || 'Alex Vance');
+    loginAsGuest(displayName || 'Cinephile Explorer');
     router.push('/');
   };
 
@@ -134,247 +146,235 @@ export default function LoginPage() {
           </span>
         </Link>
 
-        {/* Firebase Config Status Indicator */}
+        {/* Live Authentication Badge */}
         <div className="flex items-center space-x-2">
-          <span
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono border backdrop-blur-md ${
-              isConfigured
-                ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isConfigured ? 'bg-green-500 animate-pulse' : 'bg-yellow-400'
-              }`}
-            />
-            <span>{isConfigured ? 'Firebase: Connected' : 'Firebase: Demo/Test Mode'}</span>
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono border backdrop-blur-md bg-green-500/20 text-green-400 border-green-500/30">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span>Google 1-Click Auth: Active</span>
           </span>
         </div>
       </header>
 
       {/* Auth Card Center */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-netflix-base/95 border border-white/10 rounded-xl p-8 sm:p-10 shadow-cinema backdrop-blur-xl space-y-6">
-          {/* Title & Mode Switcher */}
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              {mode === 'signup' ? 'Create Cinephile Account' : 'Sign In to Stream'}
-            </h1>
-            <p className="text-xs text-netflix-gray">
-              Co-watch movies and synchronized streams in zero-drift rooms.
-            </p>
-          </div>
-
-          {/* Social Auth Providers (Google) */}
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 rounded-md bg-white hover:bg-gray-100 disabled:opacity-50 text-black font-semibold text-xs transition-all flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01]"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.87c2.26-2.09 3.675-5.17 3.675-9.15z"
+        <div className="w-full max-w-md bg-netflix-base/95 border border-white/10 rounded-2xl p-8 sm:p-10 shadow-cinema backdrop-blur-xl space-y-6">
+          {/* Active User Card (if already logged in) */}
+          {user ? (
+            <div className="text-center space-y-5">
+              <div className="relative inline-block mx-auto">
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.display_name}
+                  className="w-20 h-20 rounded-full border-4 border-netflix-red shadow-glow-red object-cover mx-auto"
                 />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.87-3.05c-1.08.72-2.45 1.16-4.06 1.16-3.13 0-5.78-2.11-6.73-4.96H1.25v3.15C3.26 21.36 7.35 24 12 24z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.25C.45 8.22 0 10.06 0 12s.45 3.78 1.25 5.39l4.02-3.15z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.61l4.02 3.15c.95-2.85 3.6-4.96 6.73-4.96z"
-                />
-              </svg>
-              <span>{isLoading ? 'Connecting...' : 'Continue with Google (Firebase Auth)'}</span>
-            </button>
-          </div>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-white/10 w-full" />
-            <span className="bg-netflix-base px-3 text-[11px] text-netflix-muted uppercase font-mono">
-              Or with Email &amp; Password
-            </span>
-          </div>
-
-          {/* Feedback Alerts */}
-          {errorMessage && (
-            <div className="p-3 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-start space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{errorMessage}</span>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="p-3 rounded bg-green-500/10 border border-green-500/30 text-xs text-green-400 flex items-center space-x-2">
-              <Check className="w-4 h-4 shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* Email/Password Form */}
-          <form onSubmit={handleEmailAuth} className="space-y-3.5">
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
-                  Display Name
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g., Sarah Connor"
-                    className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
-                  />
-                </div>
+                <span className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
               </div>
-            )}
 
-            <div>
-              <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@cinema.com"
-                  className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
-                />
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-white">Welcome back!</h2>
+                <p className="text-base font-semibold text-netflix-red">{profile.display_name}</p>
+                <p className="text-xs text-netflix-muted font-mono">{user.email}</p>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-netflix-gray uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-netflix-muted absolute left-3 top-3" />
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-netflix-surface border border-white/10 rounded px-3 pl-9 py-2 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-2.5 rounded bg-netflix-red hover:bg-netflix-redHover disabled:opacity-50 text-white text-xs font-bold shadow-glow-red transition-all flex items-center justify-center space-x-1.5"
-            >
-              <span>
-                {isLoading
-                  ? 'Authenticating...'
-                  : mode === 'signup'
-                  ? 'Create Firebase Account'
-                  : 'Sign In (Firebase)'}
-              </span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-
-          {/* Toggle between Sign In & Sign Up */}
-          <div className="text-center pt-1">
-            {mode === 'signin' ? (
-              <p className="text-xs text-netflix-gray">
-                New to Not Too Far?{' '}
+              <div className="pt-2 space-y-2.5">
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setErrorMessage('');
-                  }}
-                  className="text-white hover:text-netflix-red font-semibold underline ml-1"
+                  onClick={() => router.push('/')}
+                  className="w-full py-3 rounded-lg bg-netflix-red hover:bg-netflix-redHover text-white font-bold text-xs tracking-wider shadow-glow-red transition-all flex items-center justify-center space-x-2"
                 >
-                  Create an account
+                  <span>Enter Cinema Lounge</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
-              </p>
-            ) : (
-              <p className="text-xs text-netflix-gray">
-                Already have an account?{' '}
+
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setErrorMessage('');
-                  }}
-                  className="text-white hover:text-netflix-red font-semibold underline ml-1"
+                  onClick={signOutUser}
+                  className="w-full py-2 rounded-lg bg-netflix-card hover:bg-white/10 border border-white/10 text-xs font-semibold text-netflix-gray hover:text-white transition-colors flex items-center justify-center space-x-2"
                 >
-                  Sign in here
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Switch Account / Sign Out</span>
                 </button>
-              </p>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Header Title */}
+              <div className="text-center space-y-1.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  Sign In to Stream
+                </h1>
+                <p className="text-xs text-netflix-gray">
+                  Ultra-low latency cinema co-watching with your friends.
+                </p>
+              </div>
 
-          {/* Instant Guest / Demo Mode Button */}
-          <div className="pt-3 border-t border-white/5 space-y-2">
-            <button
-              type="button"
-              onClick={handleGuestLogin}
-              className="w-full py-2 rounded bg-netflix-card hover:bg-white/10 border border-white/10 text-xs font-semibold text-netflix-gray hover:text-white transition-colors flex items-center justify-center space-x-2"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-netflix-gold" />
-              <span>Instant Guest Mode ({profile.display_name})</span>
-            </button>
+              {/* HERO PRIMARY ACTION: GOOGLE 1-CLICK AUTH */}
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={isLoading}
+                  className="w-full py-3.5 px-6 rounded-xl bg-white hover:bg-gray-100 disabled:opacity-50 text-black font-extrabold text-sm transition-all flex items-center justify-center space-x-3 shadow-lg hover:scale-[1.02] border border-white"
+                >
+                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.87c2.26-2.09 3.675-5.17 3.675-9.15z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.87-3.05c-1.08.72-2.45 1.16-4.06 1.16-3.13 0-5.78-2.11-6.73-4.96H1.25v3.15C3.26 21.36 7.35 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.25C.45 8.22 0 10.06 0 12s.45 3.78 1.25 5.39l4.02-3.15z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.61l4.02 3.15c.95-2.85 3.6-4.96 6.73-4.96z"
+                    />
+                  </svg>
+                  <span>{isLoading ? 'Connecting to Google...' : 'Continue with Google (1-Click)'}</span>
+                </button>
 
-            {/* Collapsible Firebase Environment Helper */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfigHelper(!showConfigHelper)}
-                className="w-full flex items-center justify-between text-[11px] text-netflix-muted hover:text-netflix-gray transition-colors"
-              >
-                <span className="flex items-center gap-1 font-mono">
-                  <Key className="w-3 h-3 text-netflix-red" />
-                  <span>How to connect your live Firebase project</span>
-                </span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transform transition-transform ${
-                    showConfigHelper ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+                <p className="text-[11px] text-center text-netflix-muted">
+                  Instant login. No password required.
+                </p>
+              </div>
 
-              {showConfigHelper && (
-                <div className="mt-2 p-3 rounded bg-black/60 border border-white/10 text-[11px] text-netflix-gray space-y-2 font-mono">
-                  <p className="text-white font-semibold">Add to your .env.local:</p>
-                  <pre className="text-[10px] text-green-400 bg-black p-2 rounded overflow-x-auto select-all">
-{`NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSy...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-app.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-app.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1234567890
-NEXT_PUBLIC_FIREBASE_APP_ID=1:12345:web:abcdef`}
-                  </pre>
-                  <p className="text-netflix-muted text-[10px]">
-                    Google Sign-In requires "Google" enabled under Firebase Console &gt; Authentication &gt; Sign-in method, with "localhost" listed under Authorized domains.
-                  </p>
+              {/* Feedback Alerts */}
+              {errorMessage && (
+                <div className="p-3.5 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-300 space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                    <span className="leading-relaxed">{errorMessage}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGuestLogin}
+                    className="w-full py-1.5 rounded bg-netflix-red/20 hover:bg-netflix-red text-white text-xs font-semibold border border-netflix-red/40 transition-colors"
+                  >
+                    Enter Instantly as Guest
+                  </button>
                 </div>
               )}
-            </div>
-          </div>
+
+              {successMessage && (
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-xs text-green-400 flex items-center space-x-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
+
+              {/* Secondary Accordion: Alternative Sign In / Guest */}
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowAlternativeAuth(!showAlternativeAuth)}
+                  className="w-full flex items-center justify-between text-xs text-netflix-gray hover:text-white py-1 transition-colors"
+                >
+                  <span>Other sign-in options (Email or Guest)</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transform transition-transform ${
+                      showAlternativeAuth ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {showAlternativeAuth && (
+                  <div className="pt-4 space-y-4">
+                    {/* Instant Guest */}
+                    <button
+                      type="button"
+                      onClick={handleGuestLogin}
+                      className="w-full py-2.5 rounded-lg bg-netflix-card hover:bg-white/10 border border-white/10 text-xs font-semibold text-white transition-colors flex items-center justify-center space-x-2"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-netflix-gold" />
+                      <span>Instant Guest Mode (Zero Login)</span>
+                    </button>
+
+                    <div className="relative flex items-center justify-center">
+                      <div className="border-t border-white/10 w-full" />
+                      <span className="bg-netflix-base px-2 text-[10px] text-netflix-muted uppercase font-mono">
+                        Or Email
+                      </span>
+                    </div>
+
+                    {/* Email/Password Form */}
+                    <form onSubmit={handleEmailAuth} className="space-y-3">
+                      {mode === 'signup' && (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-netflix-gray uppercase tracking-wider mb-1">
+                            Display Name
+                          </label>
+                          <input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder="Your Name"
+                            className="w-full bg-netflix-surface border border-white/10 rounded px-3 py-1.5 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-netflix-gray uppercase tracking-wider mb-1">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="name@cinema.com"
+                          className="w-full bg-netflix-surface border border-white/10 rounded px-3 py-1.5 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-semibold text-netflix-gray uppercase tracking-wider mb-1">
+                          Password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full bg-netflix-surface border border-white/10 rounded px-3 py-1.5 text-xs text-white placeholder-netflix-muted focus:outline-none focus:border-netflix-red"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full py-2 rounded bg-netflix-card hover:bg-white/20 text-white text-xs font-semibold transition-all border border-white/10"
+                      >
+                        {mode === 'signup' ? 'Create Account' : 'Sign In with Email'}
+                      </button>
+
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                          className="text-[11px] text-netflix-gray hover:text-white underline"
+                        >
+                          {mode === 'signin' ? 'Need an account? Sign up' : 'Have an account? Sign in'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
 
       {/* Footer */}
       <footer className="relative z-10 max-w-7xl mx-auto w-full px-6 py-6 text-center text-xs text-netflix-muted">
-        <span>Protected by Firebase Authentication with Google Identity Provider &amp; Secure Token Handlers.</span>
+        <span>Protected with Google Identity Provider &amp; Zero-Drift Video Sync Architecture.</span>
       </footer>
     </div>
   );

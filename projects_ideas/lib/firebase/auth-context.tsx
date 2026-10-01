@@ -5,6 +5,8 @@ import {
   User as FirebaseUser,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -71,6 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Check if returning from a Google redirect flow
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          setUser(result.user);
+          const mapped = mapFirebaseUserToProfile(result.user);
+          setProfile(mapped);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('ntf_guest_user');
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('[Firebase Auth] Redirect result notice:', err);
+      });
+
     // Subscribe to Firebase Auth state changes
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       if (fbUser) {
@@ -98,11 +116,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleSignInWithGoogle = async () => {
     if (!auth) throw new Error('Firebase Auth is not initialized');
-    const result = await signInWithPopup(auth, googleProvider);
-    if (result.user) {
-      setUser(result.user);
-      const mapped = mapFirebaseUserToProfile(result.user);
-      setProfile(mapped);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        setUser(result.user);
+        const mapped = mapFirebaseUserToProfile(result.user);
+        setProfile(mapped);
+      }
+    } catch (err: any) {
+      if (err.code === 'auth/popup-blocked') {
+        console.warn('Popup blocked, falling back to Google redirect sign-in...');
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        throw err;
+      }
     }
   };
 
